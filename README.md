@@ -2,6 +2,10 @@
 
 업무용 워크시트처럼 보이는 웹 보드게임. 첫 게임은 **고전 Yacht Dice**입니다.
 
+**[바로 플레이](https://shinshinjin.github.io/HIDE_ON_BG/)** · [검증 결과](docs/VALIDATION.md)
+
+![실제 배포된 요트다이스 화면](docs/preview.jpg)
+
 ## 실행
 
 Node.js 22 이상:
@@ -34,11 +38,11 @@ Space: 굴리기, 1–5: 보관 변경, Tab/Enter: 셀 및 버튼 이동/선택.
 
 ## 멀티플레이 구조와 외부 서비스
 
-GitHub Pages는 HTML/JS/CSS만 제공합니다. 연결 중개는 **PeerJS 공개 PeerServer Cloud**, 데이터 전송은 **WebRTC DataChannel**입니다. 기본 이용에 별도 계정/API 키는 필요 없습니다. 공개 서비스의 가용성/무료 정책은 운영자에 의존합니다. 연결 실패 시 원인을 표시하며, 연결되지 않았는데 입장 완료처럼 표시하지 않습니다.
+GitHub Pages는 HTML/JS/CSS만 제공합니다. 연결 중개는 **PeerJS 공개 PeerServer Cloud**, 데이터 전송은 **WebRTC DataChannel**입니다. 큰 게임 기록도 분할 전송할 수 있도록 binary 직렬화를 사용합니다. 기본 이용에 별도 계정/API 키는 필요 없습니다. 공개 서비스의 가용성/무료 정책은 운영자에 의존합니다. 연결 실패 시 원인을 표시하며, 연결되지 않았는데 입장 완료처럼 표시하지 않습니다.
 
 Host가 authoritative state, 참가자/준비, 주사위 CSPRNG, 점수, 턴, 채팅 순서, revision을 관리합니다. 참가자는 명령만 보냅니다. Host는 접속 인증, 차례, 굴림 횟수, 카테고리 중복, 방 인원, 메시지 길이/속도, stale revision, 중복 request ID를 검증합니다. 참가자가 보낸 주사위/점수는 무시됩니다.
 
-**TURN:** 서로 다른 방화벽/NAT나 회사 네트워크에서는 직접 연결이 실패할 수 있습니다. 공개 signaling은 모든 환경의 연결 성공을 보장하지 않습니다. 실제 사용할 네트워크에서 먼저 연결 시험을 하세요. 필요하면 아래 ICE 설정에 TURN을 추가해야 하며, TURN 사업자 계정 또는 자체 서버와 인증정보가 필요합니다. 연결을 차단하는 조직의 네트워크 정책은 준수해야 합니다.
+**STUN/TURN:** 이 버전에 고정한 PeerJS 기본 설정에는 Google STUN 및 PeerJS의 공개 TURN 후보가 포함됩니다. 별도 계정 없이 연결을 시도하지만 서비스 가용성과 모든 방화벽/NAT 환경의 성공을 보장하지 않습니다. 실제 사용할 네트워크에서 먼저 연결 시험을 하세요. 필요하면 아래 ICE 설정에 TURN을 추가해야 하며, TURN 사업자 계정 또는 자체 서버와 인증정보가 필요합니다. 연결을 차단하는 조직의 네트워크 정책은 준수해야 합니다.
 
 `public/network-config.json`은 공개 배포 설정입니다. 예:
 
@@ -88,7 +92,7 @@ JSON은 재접속 인증정보를 포함하므로 개인 보관용입니다. 브
 3. 저장소 Settings → Pages → Build and deployment → Source를 **GitHub Actions**로 선택하세요. 워크플로가 자동 활성화를 시도하지만 최초 활성화에 저장소 관리 권한이 필요할 수 있습니다.
 4. Actions의 `Test and deploy Pages` 실행 결과와 `github-pages` 환경 URL을 확인하세요.
 
-예상 기본 주소: `https://shinshinjin.github.io/HIDE_ON_BG/` (실제 성공 여부는 Actions에서 확인).
+배포 주소: `https://shinshinjin.github.io/HIDE_ON_BG/`. 2026-09-24 배포 및 공개 환경 8인 완주 테스트 성공. 이후 실행 결과는 Actions에서 확인하세요.
 
 관리자가 해야 할 수 있는 일: Pages 최초 활성화, 조직 정책에 의해 막힌 Actions 승인. 기본 네트워크에는 별도 계정/키가 필요 없고, 자체 signaling 또는 TURN 사용 시에만 별도 서비스 설정이 필요합니다.
 
