@@ -37,6 +37,7 @@ async function closeRoom(){if(!s.room){stop();s.status='오프라인 · 혼자 �
 async function run(actionName,el){
  if(['solo','host','join','rejoin','restore'].includes(actionName)){if(s.busy)return;if(!s.room&&net)stop();s.busy=true;render();try{if(actionName==='solo')await solo();if(actionName==='host')await host();if(actionName==='join'||actionName==='rejoin')await join(actionName==='rejoin');if(actionName==='restore')await restore(s.saves.find(v=>v.id===el.dataset.id));}catch(e){if(!s.room)stop();throw e;}finally{s.busy=false;render();}return;}
  if(['home','game','log','rules','saves'].includes(actionName)){s.tab=actionName;if(actionName==='saves')s.saves=await listSaves();if(actionName==='game'&&!s.room)s.tab='home';render();return;}
+ if(actionName==='cancel'){stop();s.status='오프라인 · 혼자 플레이 가능';s.error='';render();}
  if(actionName==='dismiss'){s.error='';s.notice='';render();}
  if(actionName==='roll'||actionName==='ready'||actionName==='start')action({type:actionName});
  if(actionName==='hold')action({type:'hold',index:Number(el.dataset.index)});
