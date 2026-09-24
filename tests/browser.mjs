@@ -1,12 +1,11 @@
 // Repeatable CI integration tests using real WebRTC data channels and local signaling.
 // Run: npm run test:e2e (after npx playwright install chromium).
 import {chromium} from '@playwright/test';
-import {PeerServer} from 'peer';
 import {spawn} from 'node:child_process';
 import {mkdir} from 'node:fs/promises';
 import assert from 'node:assert/strict';
 const web=spawn(process.execPath,['scripts/serve.mjs'],{env:{...process.env,PORT:'4175'},stdio:'inherit'});
-const signal=PeerServer({port:9000,path:'/test',allow_discovery:false});
+const signal=spawn(process.execPath,['scripts/peer-server.mjs'],{stdio:'inherit'});
 await mkdir('test-results',{recursive:true});
 let browser;const failures=[];const contexts=[];
 const base=process.env.E2E_BASE_URL||'http://localhost:4175';
@@ -35,11 +34,11 @@ try{
  // Host closes and restores its own saved room. Other clients reconnect automatically.
  await host.reload();await click(host,'saves');await host.locator('[data-action="restore"]').first().click();await until(()=>host.locator('.score-table').isVisible(),45000);
  await until(()=>guests[0].locator('.statusbar').innerText().then(t=>t.includes('연결됨')),45000);
- for(const cat of categories){await takeTurn(host,cat);for(const p of guests)await takeTurn(p,cat);}
+ for(const cat of categories){await takeTurn(host,cat);for(const p of guests)await takeTurn(p,cat);console.log('Completed multiplayer category',cat);}
  for(const p of [host,...guests])await until(()=>p.locator('.result').isVisible());
  const totals=await host.locator('.total-row td').allTextContents();for(const p of guests)assert.deepEqual(await p.locator('.total-row td').allTextContents(),totals);
  await host.screenshot({path:'test-results/multiplayer-result.png',fullPage:true});
  const duplicate=await host.context().newPage();duplicate.on('dialog',d=>d.accept());await duplicate.goto(base);await click(duplicate,'host');await until(()=>duplicate.locator('#notice').innerText().then(t=>t.includes('다른 탭')));
  assert.deepEqual(failures,[]);console.log('PASS 8-peer real WebRTC: lobby, ready, chat escaping, 96 turns, guest refresh, host restore, shared results, duplicate-tab lock');
 }catch(e){console.error(e);if(browser)for(let i=0;i<contexts.length;i++)for(const p of contexts[i].pages())await p.screenshot({path:`test-results/failure-${i}.png`,fullPage:true}).catch(()=>{});process.exitCode=1;}
-finally{await browser?.close();web.kill();signal.close();}
+finally{await browser?.close();web.kill();signal.kill();}

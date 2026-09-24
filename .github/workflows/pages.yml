@@ -13,6 +13,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build:
+    timeout-minutes: 12
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

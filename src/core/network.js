@@ -30,13 +30,14 @@ export class RoomNetwork{
   let id=null,last=Date.now(),count=0,windowAt=Date.now();
   const expiry=this.later(()=>{if(!id)c.close();},12000);
   c.on('data',msg=>{
+   if(this.stopped)return;
    try{
     if(!msg||typeof msg!=='object'||JSON.stringify(msg).length>4096)throw Error('잘못된 요청입니다.');
     if(Date.now()-windowAt>1000){windowAt=Date.now();count=0;}if(++count>25)throw Error('요청이 너무 빠릅니다.');
     last=Date.now();if(id){const entry=this.clients.get(id);if(entry?.c!==c)throw Error('만료된 연결입니다.');entry.last=last;}
     if(msg.type==='ping'){this.send(c,{type:'pong'});return;}
     if(!id){
-     if(msg.type!=='hello'||msg.protocol!==PROTOCOL||typeof msg.id!=='string'||msg.id.length>64||typeof msg.token!=='string'||msg.token.length<20||msg.token.length>100||msg.id===this.room.hostId)throw Error('올바르지 않은 참가 인증입니다.');
+     if(msg.type!=='hello'||msg.protocol!==PROTOCOL||typeof msg.id!=='string'||!/^[-a-f0-9]{36}$/.test(msg.id)||typeof msg.token!=='string'||msg.token.length<20||msg.token.length>100||msg.id===this.room.hostId)throw Error('올바르지 않은 참가 인증입니다.');
      const p=this.room.players.find(p=>p.id===msg.id);
      if(p){
       if(this.tokens[msg.id]!==msg.token)throw Error('재접속 인증이 일치하지 않습니다.');
@@ -63,7 +64,7 @@ export class RoomNetwork{
   const c=this.peer.connect(`hobg-v1-${this.code}`,{reliable:true,serialization:'json'});this.conn=c;
   const timeout=this.later(()=>{if(this.connecting&&this.conn===c){this.connecting=false;c.close();this.onStatus('Host 연결 대기 · 자동 재접속');this.later(()=>this.connect(),2500);}},12000);
   c.on('open',()=>{this.connecting=false;clearTimeout(timeout);this.lastHost=Date.now();this.send(c,{type:'hello',protocol:PROTOCOL,...this.self});});
-  c.on('data',msg=>{this.lastHost=Date.now();if(msg?.type==='state'&&msg.room?.version===1&&msg.room.code===this.code){if(!this.room||msg.room.revision>=this.room.revision){this.room=msg.room;this.onState(structuredClone(this.room));}this.onStatus('연결됨');}else if(msg?.type==='error')this.onError(msg.message);});
+  c.on('data',msg=>{if(this.stopped)return;this.lastHost=Date.now();if(msg?.type==='state'&&msg.room?.version===1&&msg.room.code===this.code){if(!this.room||msg.room.revision>=this.room.revision){this.room=msg.room;this.onState(structuredClone(this.room));}this.onStatus('연결됨');}else if(msg?.type==='error')this.onError(msg.message);});
   const lost=()=>{if(this.conn!==c)return;this.connecting=false;this.conn=null;this.onStatus('Host 연결 대기 · 자동 재접속');this.later(()=>this.connect(),3000);};c.on('close',lost);c.on('error',lost);
  }
  heartbeat(){
