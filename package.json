@@ -1,0 +1,1 @@
+{"name":"hide-on-bg","version":"1.0.0","private":true,"type":"module","engines":{"node":">=22"},"scripts":{"dev":"node scripts/serve.mjs","build":"node scripts/build.mjs","test":"node --test tests/*.test.js","test:e2e":"node tests/browser.mjs"},"dependencies":{"peerjs":"1.5.5"},"devDependencies":{"@playwright/test":"^1.51.1","peer":"^1.0.2"}}
