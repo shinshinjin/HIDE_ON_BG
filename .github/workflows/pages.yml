@@ -46,3 +46,23 @@ jobs:
           enablement: true
       - uses: actions/deploy-pages@v4
         id: deployment
+  verify-live:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+        env:
+          E2E_BASE_URL: https://shinshinjin.github.io/HIDE_ON_BG/
+          E2E_CLOUD: '1'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-browser-test-results
+          path: test-results

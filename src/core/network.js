@@ -35,7 +35,7 @@ export class RoomNetwork{
     if(!msg||typeof msg!=='object'||JSON.stringify(msg).length>4096)throw Error('잘못된 요청입니다.');
     if(Date.now()-windowAt>1000){windowAt=Date.now();count=0;}if(++count>25)throw Error('요청이 너무 빠릅니다.');
     last=Date.now();if(id){const entry=this.clients.get(id);if(entry?.c!==c)throw Error('만료된 연결입니다.');entry.last=last;}
-    if(msg.type==='ping'){this.send(c,{type:'pong'});return;}
+    if(msg.type==='ping'){this.send(c,id?{type:'state',room:this.room}:{type:'pong'});return;}
     if(!id){
      if(msg.type!=='hello'||msg.protocol!==PROTOCOL||typeof msg.id!=='string'||!/^[-a-f0-9]{36}$/.test(msg.id)||typeof msg.token!=='string'||msg.token.length<20||msg.token.length>100||msg.id===this.room.hostId)throw Error('올바르지 않은 참가 인증입니다.');
      const p=this.room.players.find(p=>p.id===msg.id);
@@ -54,17 +54,17 @@ export class RoomNetwork{
      this.room=act(this.room,id,msg.action);this.seen.set(msg.requestId,true);if(this.seen.size>512)this.seen.delete(this.seen.keys().next().value);this.publish();
      if(msg.action.type==='leave'){this.clients.delete(id);if(this.room.phase==='lobby')delete this.tokens[id];this.later(()=>c.close(),100);}
     }else throw Error('지원하지 않는 요청입니다.');
-   }catch(e){this.send(c,{type:'error',message:e.message});if(!id)this.later(()=>c.close(),150);}
+   }catch(e){this.send(c,{type:'error',message:e.message,retry:e.message==='만료된 연결입니다.'});if(!id||e.message==='만료된 연결입니다.')this.later(()=>c.close(),150);}
   });
   const closed=()=>{if(id&&this.clients.get(id)?.c===c){this.clients.delete(id);const p=this.room.players.find(p=>p.id===id);if(p?.online){p.online=false;system(this.room,`${p.name}님의 연결이 끊어졌습니다.`);touch(this.room);this.publish();}}};
   c.on('close',closed);c.on('error',closed);
  }
  connect(){
   if(this.stopped||this.connecting||this.conn?.open)return;this.connecting=true;this.onStatus('Host에 연결 중');
-  const c=this.peer.connect(`hobg-v1-${this.code}`,{reliable:true,serialization:'json'});this.conn=c;
+  const c=this.peer.connect(`hobg-v1-${this.code}`,{reliable:true,serialization:'binary'});this.conn=c;
   const timeout=this.later(()=>{if(this.connecting&&this.conn===c){this.connecting=false;c.close();this.onStatus('Host 연결 대기 · 자동 재접속');this.later(()=>this.connect(),2500);}},12000);
   c.on('open',()=>{this.connecting=false;clearTimeout(timeout);this.lastHost=Date.now();this.send(c,{type:'hello',protocol:PROTOCOL,...this.self});});
-  c.on('data',msg=>{if(this.stopped)return;this.lastHost=Date.now();if(msg?.type==='state'&&msg.room?.version===1&&msg.room.code===this.code){if(!this.room||msg.room.revision>=this.room.revision){this.room=msg.room;this.onState(structuredClone(this.room));}this.onStatus('연결됨');}else if(msg?.type==='error')this.onError(msg.message);});
+  c.on('data',msg=>{if(this.stopped||this.conn!==c)return;this.lastHost=Date.now();if(msg?.type==='state'&&msg.room?.version===1&&msg.room.code===this.code){if(!this.room||msg.room.revision>=this.room.revision){this.room=msg.room;this.onState(structuredClone(this.room));}this.onStatus('연결됨');}else if(msg?.type==='error'){if(msg.retry){c.close();this.onStatus('연결 복구 중');}else this.onError(msg.message);}});
   const lost=()=>{if(this.conn!==c)return;this.connecting=false;this.conn=null;this.onStatus('Host 연결 대기 · 자동 재접속');this.later(()=>this.connect(),3000);};c.on('close',lost);c.on('error',lost);
  }
  heartbeat(){
