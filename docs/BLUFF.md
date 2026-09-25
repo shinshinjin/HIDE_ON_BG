@@ -15,7 +15,7 @@ Richard Borg의 Ravensburger Bluff 기본판을 구현한다. 현금·칩·결�
 
 ## 온라인 동작
 
-기존 방, Ready, 초대 코드, PeerJS 연결, session token, 채팅, IndexedDB, JSON 복구를 그대로 사용한다. 대기실 Host가 게임을 선택하고 ‘게임 적용’을 누르면 참가자 Ready가 초기화된다. 7명 이상 방은 Bluff로 변경할 수 없다. Yacht는 계속 최대 8명이다.
+기존 방, Ready, 초대 코드, PeerJS 연결, session token, 채팅, IndexedDB, JSON 복구를 그대로 사용한다. 대기실 Host가 게임 선택 버튼을 누르면 참가자 Ready가 초기화된다. 7명 이상 방은 Bluff로 변경할 수 없다. Yacht는 계속 최대 8명이다.
 
 Host만 다음 라운드를 연다. 공개 판정 화면을 읽을 시간을 주기 위한 UI 단계로, 선 플레이어 자체는 판정 승자이다. 탈락자도 Host 역할·관전·채팅은 유지한다.
 
