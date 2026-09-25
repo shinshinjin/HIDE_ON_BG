@@ -57,10 +57,10 @@ async function run(actionName,el){
  if(actionName==='leave')await closeRoom();
  if(actionName==='rematch'){const mode=s.room.mode;s.fields.gameId=s.room.gameId;await closeRoom();if(!s.room){if(mode==='solo')await solo();else await host();}}
 }
-app.addEventListener('input',e=>{if(e.target.dataset.field)s.fields[e.target.dataset.field]=e.target.value;});
+app.addEventListener('input',e=>{if(e.target.dataset.field)s.fields[e.target.dataset.field]=e.target.value;if(e.target.id==='lobby-game'){try{action({type:'selectGame',gameId:e.target.value});}catch(e){error(e);}}});
 app.addEventListener('click',e=>{const el=e.target.closest('[data-action]');if(el&&!el.disabled)run(el.dataset.action,el).catch(error);});
 app.addEventListener('submit',e=>{if(e.target.id==='chat-form'){e.preventDefault();try{action({type:'chat',text:s.fields.chat.trim()});s.fields.chat='';render();document.querySelector('#chat')?.focus();}catch(e){error(e);}}});
-app.addEventListener('change',async e=>{if(e.target.dataset.field==='gameId'){s.fields.gameId=e.target.value;render();}if(e.target.id==='lobby-game'){try{action({type:'selectGame',gameId:e.target.value});}catch(e){error(e);}}if(e.target.id==='import-file'){try{const file=e.target.files[0];if(!file)return;if(file.size>500000)throw Error('파일은 500KB 이하여야 합니다.');const data=parseSave(await file.text());await restore(data);}catch(e){stop();error(e);}}});
+app.addEventListener('change',async e=>{if(e.target.dataset.field==='gameId'){s.fields.gameId=e.target.value;render();}if(e.target.id==='import-file'){try{const file=e.target.files[0];if(!file)return;if(file.size>500000)throw Error('파일은 500KB 이하여야 합니다.');const data=parseSave(await file.text());await restore(data);}catch(e){stop();error(e);}}});
 document.addEventListener('keydown',e=>{if(e.target.id==='chat'&&e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();document.querySelector('#chat-form').requestSubmit();return;}if(e.target.closest('input,textarea,button,select,a')||e.ctrlKey||e.metaKey||e.altKey||e.repeat)return;if(s.room?.gameId==='yacht'&&s.room.phase==='playing'&&currentPlayer(s.room.game)===s.self.id){try{if(e.code==='Space'){e.preventDefault();action({type:'roll'});}else if(/^[1-5]$/.test(e.key))action({type:'hold',index:Number(e.key)-1});}catch(e){error(e);}}});
 window.addEventListener('pagehide',()=>{net?.stop();});
 window.addEventListener('pageshow',e=>{if(e.persisted)location.reload();});
