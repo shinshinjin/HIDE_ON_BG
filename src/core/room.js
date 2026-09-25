@@ -28,12 +28,14 @@ export function act(room,actor,action){
   if(r.phase==='lobby')r.players=r.players.filter(q=>q.id!==actor);
   else if(r.phase==='playing'){r.game=def.forfeit(r.game,actor);p.online=false;r.phase=r.game.phase;}
   system(r,`${p.name}님이 나갔습니다.${r.phase==='lobby'?'':' (기권)'}`);
+  if(r.gameId==='bluff'&&room.game?.stage==='bid'&&room.game.counts[actor]>0&&r.phase==='playing')system(r,'기권으로 현재 선언을 취소하고 남은 주사위를 다시 굴렸습니다.');
  }else if(action.type==='remove'){
   if(actor!==r.hostId||r.phase!=='lobby')throw Error('대기실 Host만 참가자를 정리할 수 있습니다.');const target=r.players.find(q=>q.id===action.playerId);if(!target||target.online)throw Error('연결이 끊긴 참가자만 정리할 수 있습니다.');r.players=r.players.filter(q=>q.id!==target.id);system(r,`${target.name}님의 자리를 정리했습니다.`);
  }else if(action.type==='forfeit'){
   if(actor!==r.hostId||r.phase!=='playing')throw Error('Host만 기권 처리할 수 있습니다.');
   const target=r.players.find(q=>q.id===action.playerId);if(!target||target.online)throw Error('연결이 끊긴 참가자만 기권 처리할 수 있습니다.');
   r.game=def.forfeit(r.game,target.id);r.phase=r.game.phase;system(r,`${target.name}님을 기권 처리했습니다.`);
+  if(r.gameId==='bluff'&&room.game.stage==='bid'&&room.game.counts[target.id]>0&&r.phase==='playing')system(r,'기권으로 현재 선언을 취소하고 남은 주사위를 다시 굴렸습니다.');
  }else{
   if(r.phase!=='playing')throw Error('게임 진행 중에만 가능합니다.');
   if(action.type==='nextRound'&&actor!==r.hostId)throw Error('Host만 다음 라운드를 시작할 수 있습니다.');
