@@ -24,7 +24,7 @@ function persist(room=s.room,credentials=tokens){if(!room||room.hostId!==s.self.
 async function lock(id){if(releaseLock)return;if(!navigator.locks){throw Error('이 브라우저는 안전한 중복 접속 방지를 지원하지 않습니다. 최신 브라우저를 이용하세요.');}await new Promise((resolve,reject)=>{navigator.locks.request('hobg-session-'+id,{ifAvailable:true},async l=>{if(!l){reject(Error('다른 탭에서 같은 참가자가 접속 중입니다. 먼저 해당 탭을 닫아주세요.'));return;}await new Promise(done=>{releaseLock=done;resolve();});}).catch(reject);});}
 function setupIdentity(){s.self={...identity,name:name(s.fields.nickname)};Object.assign(identity,s.self);local('hobg-identity',identity);}
 function stop(){net?.stop();net=null;clearTimeout(aiTimer);aiTimer=null;releaseLock?.();releaseLock=null;s.busy=false;}
-function updateRoom(r){s.room=r;if(s.tab==='home')s.tab='game';render();scheduleAI();}
+function updateRoom(r){if(s.room?.id!==r.id||s.room?.gameId!==r.gameId)s.fields.lobbyGame=r.gameId;s.room=r;if(s.tab==='home')s.tab='game';render();scheduleAI();}
 function network(){return new RoomNetwork({self:s.self,onState:updateRoom,onStatus:status=>{s.status=status;render();},onError:message=>error(Error(message)),onPersist:(r,t)=>{tokens={...t};persist(r,t);}});}
 function scheduleAI(){
  clearTimeout(aiTimer);if(s.room?.mode!=='solo'||s.room.phase!=='playing')return;const r=s.room,p=r.players.find(p=>p.id===currentPlayer(r.game));if(!p?.bot||r.gameId==='bluff'&&r.game.stage!=='bid')return;
@@ -42,6 +42,7 @@ async function run(actionName,el){
  if(actionName==='cancel'){stop();s.status='오프라인 · 혼자 플레이 가능';s.error='';render();}
  if(actionName==='dismiss'){s.error='';s.notice='';render();}
  if(actionName==='roll'||actionName==='ready'||actionName==='start')action({type:actionName});
+ if(actionName==='selectGame')action({type:'selectGame',gameId:s.fields.lobbyGame||s.room.gameId});
  if(actionName==='bluffBid'){const value=document.querySelector('#bluff-bid').value;const [count,face]=value.split(':').map(Number);action({type:'bid',count,face,round:s.room.game.round});}
  if(actionName==='challenge'||actionName==='nextRound')action({type:actionName,round:s.room.game.round});
  if(actionName==='hold')action({type:'hold',index:Number(el.dataset.index)});
@@ -57,7 +58,7 @@ async function run(actionName,el){
  if(actionName==='leave')await closeRoom();
  if(actionName==='rematch'){const mode=s.room.mode;s.fields.gameId=s.room.gameId;await closeRoom();if(!s.room){if(mode==='solo')await solo();else await host();}}
 }
-app.addEventListener('input',e=>{if(e.target.dataset.field)s.fields[e.target.dataset.field]=e.target.value;if(e.target.id==='lobby-game'){try{action({type:'selectGame',gameId:e.target.value});}catch(e){error(e);}}});
+app.addEventListener('input',e=>{if(e.target.dataset.field)s.fields[e.target.dataset.field]=e.target.value;});
 app.addEventListener('click',e=>{const el=e.target.closest('[data-action]');if(el&&!el.disabled)run(el.dataset.action,el).catch(error);});
 app.addEventListener('submit',e=>{if(e.target.id==='chat-form'){e.preventDefault();try{action({type:'chat',text:s.fields.chat.trim()});s.fields.chat='';render();document.querySelector('#chat')?.focus();}catch(e){error(e);}}});
 app.addEventListener('change',async e=>{if(e.target.dataset.field==='gameId'){s.fields.gameId=e.target.value;render();}if(e.target.id==='import-file'){try{const file=e.target.files[0];if(!file)return;if(file.size>500000)throw Error('파일은 500KB 이하여야 합니다.');const data=parseSave(await file.text());await restore(data);}catch(e){stop();error(e);}}});

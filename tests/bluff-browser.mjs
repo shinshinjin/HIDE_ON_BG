@@ -12,7 +12,7 @@ export async function testBluff({page,click,until,contexts}){
  await until(()=>solo.locator('.result').isVisible());assert(await solo.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));console.log('PASS Bluff solo versus AI to final winner');
  const host=await page('블러프 Host');await click(host,'host');await until(()=>host.locator('#room-code').isVisible());const code=await host.locator('#room-code').innerText();const peers=[host];
  for(let i=1;i<6;i++){const p=await page('블러프 '+i,i%2?390:1280);await p.locator('#invite').fill(code);await click(p,'join');await until(()=>p.locator('[data-action="ready"]').isVisible());await click(p,'ready');peers.push(p);}
- await until(()=>host.locator('[data-action="start"]').isEnabled());await host.locator('#lobby-game').selectOption('bluff');
+ await until(()=>host.locator('[data-action="start"]').isEnabled());await host.locator('#lobby-game').selectOption('bluff');await click(host,'selectGame');
  for(const p of peers.slice(1)){await until(()=>p.locator('#lobby-game').inputValue().then(v=>v==='bluff'));await until(()=>p.locator('[data-action="ready"]').innerText().then(t=>t==='준비 완료'));await click(p,'ready');}
  await until(()=>host.locator('[data-action="start"]').isEnabled());
  const extra=await page('정원 초과');await extra.locator('#invite').fill(code);await click(extra,'join');await until(()=>extra.locator('#notice').innerText().then(t=>t.includes('가득')));await extra.context().close();
