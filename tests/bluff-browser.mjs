@@ -4,7 +4,7 @@ export async function testBluff({page,click,until,contexts}){
  for(const context of contexts)await context.close();contexts.length=0;
  const solo=await page('블러프 혼자',390);await solo.locator('#game-select').selectOption('bluff');await click(solo,'solo');
  for(let i=0;i<60;i++){
-  await until(async()=>await solo.locator('.result').isVisible()||await solo.locator('[data-action="bluffBid"]').isEnabled()||await solo.locator('[data-action="nextRound"]').isVisible());
+  await until(async()=>await solo.locator('.result').isVisible()||await solo.locator('[data-action="nextRound"]').isVisible()||(await solo.locator('[data-action="bluffBid"]:enabled').count())>0);
   if(await solo.locator('.result').isVisible())break;
   if(await solo.locator('[data-action="nextRound"]').isVisible())await click(solo,'nextRound');
   else {const challenge=solo.locator('[data-action="challenge"]');if(await challenge.isEnabled())await challenge.click();else{await solo.locator('#bluff-bid').selectOption('20:5');await click(solo,'bluffBid');}}

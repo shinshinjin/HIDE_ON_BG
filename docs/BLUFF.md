@@ -38,3 +38,20 @@ Host는 전체 상태를 관리하는 신뢰된 참가자이다. Host의 개발�
 `npm test`: 규칙, 선언 전체 순서, Exact 제3자 탈락, 턴, 기권, 저장 무결성, AI 완주, 모든 네트워크 상태 전송 경로 비공개 검증 + 기존 Yacht/방 테스트.
 
 기존 `npm run test:e2e`에 Bluff 시나리오를 연결한다. 같은 WebRTC 테스트 환경에서 혼자 + AI, 6개 브라우저, 대기실 게임 전환, 정원, 준비, 모바일, 채팅, Guest 새로고침, Host 저장 복구, 상향 선언, 판정, 탈락, 최후 1명을 확인한다. 기존 Yacht 혼자/8인 96턴 검증도 그대로 실행한다. 기존 Pages workflow가 배포 전과 실제 배포 URL에서 두 게임을 검증한다.
+
+## 변경 범위
+
+| 기존 파일 | 변경 이유 |
+| --- | --- |
+| `src/games/registry.js` | Bluff 등록 및 게임별 최대 인원·저장 검증 연결 |
+| `src/core/room.js` | Host 게임 선택, 준비 초기화, 다음 라운드 권한, 공개 행동 로그 |
+| `src/core/network.js` | 모든 상태 응답에 플레이어별 비공개 필터 적용 |
+| `src/core/storage.js` | 기존 저장 형식에 Bluff 검증기 연결 |
+| `src/app.js` | 게임 선택, Bluff 행동·컴퓨터 연결 및 선택 이벤트 경합 수정 |
+| `src/ui/view.js` | 기존 화면에 게임 선택과 Bluff 표시 분기 |
+| `src/ui/style.css` | Bluff에 필요한 셀·선언 입력의 제한된 스타일 추가 |
+| `tests/network.test.js` | 비공개 상태의 모든 전송 경로 검증 |
+| `tests/browser.mjs` | 기존 테스트 실행기에 Bluff 시나리오 연결 |
+| `README.md` | 두 번째 게임 사용·규칙 문서 안내 |
+
+추가 파일은 `src/games/bluff/{rules,engine,ai,validate,ui}.js`, `tests/bluff.test.js`, `tests/bluff-browser.mjs`, 이 문서와 `bluff-preview.jpg`이다. Yacht 모듈, 패키지, 빌드 스크립트, Pages workflow는 변경하지 않았다.
