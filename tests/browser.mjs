@@ -1,3 +1,4 @@
+import {testBluff} from './bluff-browser.mjs';
 // Repeatable CI integration tests using real WebRTC data channels and local signaling.
 // Run: npm run test:e2e (after npx playwright install chromium).
 import {chromium} from '@playwright/test';
@@ -39,6 +40,7 @@ try{
  const totals=await host.locator('.total-row td').allTextContents();for(const p of guests)assert.deepEqual(await p.locator('.total-row td').allTextContents(),totals);
  await host.screenshot({path:'test-results/multiplayer-result.png',fullPage:true});
  const duplicate=await host.context().newPage();duplicate.on('dialog',d=>d.accept());await duplicate.goto(base);await click(duplicate,'host');await until(()=>duplicate.locator('#notice').innerText().then(t=>t.includes('다른 탭')));
+ await testBluff({page,click,until,contexts});
  assert.deepEqual(failures,[]);console.log('PASS 8-peer real WebRTC: lobby, ready, chat escaping, 96 turns, guest refresh, host restore, shared results, duplicate-tab lock');
 }catch(e){console.error(e);console.error('Page errors:',failures);if(browser)for(let i=0;i<contexts.length;i++)for(const p of contexts[i].pages())console.error('Page',i,await p.locator('body').innerText().catch(()=>''));if(browser)for(let i=0;i<contexts.length;i++)for(const p of contexts[i].pages())await p.screenshot({path:`test-results/failure-${i}.png`,fullPage:true}).catch(()=>{});process.exitCode=1;}
 finally{await browser?.close();web.kill();signal.kill();}

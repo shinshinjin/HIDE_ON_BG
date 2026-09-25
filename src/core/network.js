@@ -1,4 +1,6 @@
 import {uid,PROTOCOL,joinRoom,act,touch,system} from './room.js';
+import {getGame} from '../games/registry.js';
+export function roomForPlayer(room,id){const r=structuredClone(room);if(r.game&&getGame(r.gameId).publicState)r.game=getGame(r.gameId).publicState(room.game,id);return r;}
 const alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const inviteCode=()=>Array.from(crypto.getRandomValues(new Uint8Array(10)),n=>alphabet[n%32]).join('');
 export const cleanCode=s=>s.toUpperCase().replace(/[\s-]/g,'');
@@ -35,8 +37,9 @@ export class RoomNetwork{
     if(!msg||typeof msg!=='object'||JSON.stringify(msg).length>4096)throw Error('잘못된 요청입니다.');
     if(Date.now()-windowAt>1000){windowAt=Date.now();count=0;}if(++count>25)throw Error('요청이 너무 빠릅니다.');
     last=Date.now();if(id){const entry=this.clients.get(id);if(entry?.c!==c)throw Error('만료된 연결입니다.');entry.last=last;}
-    if(msg.type==='ping'){this.send(c,id?{type:'state',room:this.room}:{type:'pong'});return;}
+    if(msg.type==='ping'){this.send(c,id?{type:'state',room:roomForPlayer(this.room,id)}:{type:'pong'});return;}
     if(!id){
+     if(msg.type==='hello'&&msg.protocol!==PROTOCOL)throw Error('앱 버전이 다릅니다. 모든 참가자가 새로고침 후 재접속하세요.');
      if(msg.type!=='hello'||msg.protocol!==PROTOCOL||typeof msg.id!=='string'||!/^[-a-f0-9]{36}$/.test(msg.id)||typeof msg.token!=='string'||msg.token.length<20||msg.token.length>100||msg.id===this.room.hostId)throw Error('올바르지 않은 참가 인증입니다.');
      const p=this.room.players.find(p=>p.id===msg.id);
      if(p){
@@ -49,8 +52,8 @@ export class RoomNetwork{
     }
     if(msg.type==='action'){
      if(typeof msg.requestId!=='string'||msg.requestId.length>64)throw Error('요청 식별자가 없습니다.');
-     if(this.seen.has(msg.requestId)){this.send(c,{type:'state',room:this.room});return;}
-     if(msg.action?.type!=='chat'&&msg.revision!==this.room.revision){this.send(c,{type:'state',room:this.room});throw Error('상태가 갱신되었습니다. 다시 선택하세요.');}
+     if(this.seen.has(msg.requestId)){this.send(c,{type:'state',room:roomForPlayer(this.room,id)});return;}
+     if(msg.action?.type!=='chat'&&msg.revision!==this.room.revision){this.send(c,{type:'state',room:roomForPlayer(this.room,id)});throw Error('상태가 갱신되었습니다. 다시 선택하세요.');}
      this.room=act(this.room,id,msg.action);this.seen.set(msg.requestId,true);if(this.seen.size>512)this.seen.delete(this.seen.keys().next().value);this.publish();
      if(msg.action.type==='leave'){this.clients.delete(id);if(this.room.phase==='lobby')delete this.tokens[id];this.later(()=>c.close(),100);}
     }else throw Error('지원하지 않는 요청입니다.');
@@ -74,7 +77,7 @@ export class RoomNetwork{
    this.heartbeat();
   },4000);
  }
- publish(){if(this.stopped)return;for(const id of Object.keys(this.tokens))if(!this.room.players.some(p=>p.id===id))delete this.tokens[id];const room=structuredClone(this.room);for(const {c} of this.clients.values())this.send(c,{type:'state',room});this.onState(room);this.onPersist(room,this.tokens);}
+ publish(){if(this.stopped)return;for(const id of Object.keys(this.tokens))if(!this.room.players.some(p=>p.id===id))delete this.tokens[id];const room=structuredClone(this.room);for(const [id,{c}] of this.clients)this.send(c,{type:'state',room:roomForPlayer(room,id)});this.onState(room);this.onPersist(room,this.tokens);}
  action(action){if(this.isHost){this.room=act(this.room,this.self.id,action);this.publish();}else{if(!this.conn?.open)throw Error('Host 재접속을 기다려주세요.');this.send(this.conn,{type:'action',requestId:uid(),revision:this.room?.revision,action});}}
  stop(){this.stopped=true;for(const t of this.timers)clearTimeout(t);this.peer?.destroy();this.clients.clear();}
 }

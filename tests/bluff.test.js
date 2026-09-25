@@ -1,0 +1,31 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {countMatches,higherBid,availableBids,bids,judge} from '../src/games/bluff/rules.js';
+import {createGame,applyGame,currentPlayer,publicState,forfeit} from '../src/games/bluff/engine.js';
+import {chooseAI} from '../src/games/bluff/ai.js';
+import {createRoom,joinRoom,act,uid} from '../src/core/room.js';
+import {validateSave} from '../src/core/storage.js';
+const players=Array.from({length:3},(_,i)=>({id:'p'+i,name:'P'+i}));
+function game(dice=[[2,2,6,4,5],[2,1,1,1,1],[2,6,3,3,3]]){const g=createGame(players.slice(0,dice.length));g.turn=0;g.dice=Object.fromEntries(g.order.map((id,i)=>[id,dice[i]]));g.counts=Object.fromEntries(g.order.map((id,i)=>[id,dice[i].length]));return g;}
+const bid=(g,count,face=2)=>applyGame(g,currentPlayer(g),{type:'bid',count,face,round:g.round});
+const challenge=g=>applyGame(g,currentPlayer(g),{type:'challenge',round:g.round});
+test('Bluff joker and stars-only counting',()=>{const dice={a:[2,2,6],b:[2,2,6]};assert.equal(countMatches(dice,2),6);assert.equal(countMatches(dice,6),2);assert.equal(countMatches(dice,5),2);});
+test('original board ordering including every star transition',()=>{
+ assert.deepEqual(bids.slice(0,7),[1,2,3,4,5,6,1].map((face,i)=>({count:i===6?2:1,face})));
+ for(let n=1;n<=10;n++){assert(higherBid({count:n,face:6},{count:2*n-1,face:5}));assert(higherBid({count:2*n,face:1},{count:n,face:6}));assert(!higherBid({count:n,face:6},{count:2*n,face:1}));}
+ assert(higherBid({count:3,face:5},{count:3,face:4}));assert(!higherBid({count:3,face:4},{count:3,face:5}));assert.equal(availableBids({count:20,face:5}).length,0);
+ for(const b of [{count:0,face:1},{count:21,face:1},{count:11,face:6},{count:1.5,face:3},{count:2,face:7}])assert(!higherBid(b,null));
+});
+test('fewer actual dice: declarer loses exact difference, caller starts',()=>{const g=challenge(bid(game(),8));assert.equal(g.result.actual,6);assert.equal(g.counts.p0,3);assert.equal(g.counts.p1,5);assert.equal(currentPlayer(g),'p1');assert.equal(g.stage,'result');});
+test('more actual dice: challenger loses difference, bidder starts',()=>{const g=challenge(bid(game(),3));assert.equal(g.counts.p1,2);assert.equal(currentPlayer(g),'p0');});
+test('Exact removes one from everyone except bidder, including third party last die',()=>{const g=challenge(bid(game([[2,1],[3],[4]]),1));assert.deepEqual(g.counts,{p0:2,p1:0,p2:0});assert.equal(g.phase,'finished');assert.equal(g.winner,'p0');assert.equal(g.result.exact,true);});
+test('loss capped, elimination, turn skips eliminated, next round rerolls',()=>{let g=challenge(bid(game(),20));assert.equal(g.counts.p0,0);assert.equal(currentPlayer(g),'p1');assert.throws(()=>bid(g,1),/차례/);g=applyGame(g,'p0',{type:'nextRound',round:1},()=>3);assert.equal(g.round,2);assert.deepEqual(g.dice.p0,[]);assert.deepEqual(g.dice.p1,[3,3,3,3,3]);g=bid(g,1,3);assert.equal(currentPlayer(g),'p2');g=bid(g,2,3);assert.equal(currentPlayer(g),'p1');});
+test('reject out of turn, pre-bid challenge, stale round and injected result fields',()=>{let g=game();assert.throws(()=>challenge(g),/첫 선언/);assert.throws(()=>applyGame(g,'p1',{type:'bid',round:1,count:1,face:1}),/차례/);assert.throws(()=>applyGame(g,'p0',{type:'bid',round:0,count:1,face:1}),/라운드/);const before=structuredClone(g.dice);g=applyGame(g,'p0',{type:'bid',round:1,count:1,face:1,dice:{},counts:{p0:99},winner:'p0',turn:0});assert.deepEqual(g.dice,before);assert.equal(g.winner,null);assert.equal(g.turn,1);assert.throws(()=>bid(g,1,1),/높은/);});
+test('views exclude every opponent die until public adjudication',()=>{let g=game();for(const id of g.order){const v=publicState(g,id);assert(!('dice' in v));assert.deepEqual(v.ownDice,g.dice[id]);assert.equal(v.result,null);assert.deepEqual(v.history,[]);}g=challenge(bid(g,7));assert.deepEqual(publicState(g,'p1').result.dice,g.dice);g=applyGame(g,'p0',{type:'nextRound',round:1});const v=publicState(g,'p1');assert(!('dice' in v));assert.equal(v.result,null);assert.equal(v.history.length,1);assert.equal(v.history[0].round,1);});
+test('forfeit cancels hidden claim and redeals without disclosure; last active wins',()=>{let g=bid(game(),4);g=forfeit(g,'p1');assert.equal(g.bid,null);assert.equal(g.counts.p1,0);assert.equal(g.dice.p1.length,0);assert.equal(currentPlayer(g),'p2');assert.equal(publicState(g,'p0').result,null);g=forfeit(g,'p2');assert.equal(g.winner,'p0');assert.equal(g.phase,'finished');});
+test('Bluff room selection caps six, resets ready and Host alone advances',()=>{
+ const h={id:uid(),name:'Host'};let r=createRoom(h,'test');for(let i=0;i<6;i++)r=joinRoom(r,{id:uid(),name:'P'+i});assert.throws(()=>act(r,h.id,{type:'selectGame',gameId:'bluff'}),/최대 6/);r.players.pop();r=act(r,h.id,{type:'selectGame',gameId:'bluff'});assert.equal(r.gameId,'bluff');assert(r.players.slice(1).every(p=>!p.ready));assert.throws(()=>joinRoom(r,{id:uid(),name:'Extra'}),/가득/);r.players.forEach(p=>p.ready=true);r=act(r,h.id,{type:'start'});assert.throws(()=>act(r,r.players[1].id,{type:'nextRound',round:1}),/Host/);
+});
+test('full 2 and 6 player AI games terminate, maintain valid saves and no AI hidden knowledge',()=>{
+ for(const n of [2,6]){const h={id:uid(),name:'Host'};let r=createRoom(h,'test','solo','','bluff');for(let i=1;i<n;i++)r=joinRoom(r,{id:'bot'+i,name:'Bot'+i,bot:true});r.players.forEach(p=>p.ready=true);r=act(r,h.id,{type:'start'});let actions=0;while(r.phase==='playing'){validateSave({id:r.id,version:1,savedAt:Date.now(),room:r,tokens:{}});const g=r.game,id=currentPlayer(g);const a=g.stage==='result'?{type:'nextRound',round:g.round}:chooseAI(publicState(g,id),id);r=act(r,g.stage==='result'?h.id:id,a);assert(++actions<3200);}validateSave({id:r.id,version:1,savedAt:Date.now(),room:r,tokens:{}});assert.equal(r.game.order.filter(id=>r.game.counts[id]>0).length,1);}
+});
+test('save rejects forged counts, dice, turn and judgement',()=>{const h={id:uid(),name:'Host'};let r=createRoom(h,'test','solo','','bluff');r=joinRoom(r,{id:'bot',name:'Bot',bot:true});r.players[1].ready=true;r=act(r,h.id,{type:'start'});const data={id:r.id,version:1,savedAt:Date.now(),room:r,tokens:{}};validateSave(data);for(const mutate of [g=>g.counts[h.id]=6,g=>g.dice[h.id][0]=9,g=>g.turn=8,g=>g.winner=h.id]){const x=structuredClone(data);mutate(x.room.game);assert.throws(()=>validateSave(x));}});

@@ -1,12 +1,13 @@
 import {categories,RULESET,validDice,score} from '../games/yacht/scoring.js';
+import {getGame,games} from '../games/registry.js';
 export const SAVE_VERSION=1;
 function assert(ok){if(!ok)throw Error('지원하지 않거나 손상된 저장 파일입니다.');}
 export function validateSave(data){
  assert(data&&data.version===SAVE_VERSION&&Number.isFinite(data.savedAt));const r=data.room;
- assert(r&&r.version===1&&r.gameId==='yacht'&&['solo','multi'].includes(r.mode)&&['lobby','playing','finished'].includes(r.phase));
+ assert(r&&r.version===1&&Object.hasOwn(games,r.gameId)&&['solo','multi'].includes(r.mode)&&['lobby','playing','finished'].includes(r.phase));
  assert(data.id===r.id);
  assert(typeof r.id==='string'&&typeof r.title==='string'&&r.title.length<=40&&typeof r.code==='string'&&r.code.length<=20&&Number.isInteger(r.revision)&&r.revision>=0);
- assert(Array.isArray(r.players)&&r.players.length>=1&&r.players.length<=8);
+ assert(Array.isArray(r.players)&&r.players.length>=1&&r.players.length<=getGame(r.gameId).maxPlayers);
  assert(new Set(r.players.map(p=>p.id)).size===r.players.length);
  assert(r.players.every(p=>p&&typeof p.id==='string'&&p.id.length<=64&&typeof p.name==='string'&&p.name.length>0&&p.name.length<=16&&typeof p.online==='boolean'&&typeof p.ready==='boolean'));
  assert(r.players.some(p=>p.id===r.hostId));assert(data.tokens&&typeof data.tokens==='object'&&!Array.isArray(data.tokens));
@@ -14,6 +15,7 @@ export function validateSave(data){
  assert(r.players.filter(p=>p.id!==r.hostId&&!p.bot).every(p=>typeof data.tokens[p.id]==='string'));
  assert(Array.isArray(r.messages)&&r.messages.length<=150&&r.messages.every(m=>typeof m.id==='string'&&typeof m.sender==='string'&&typeof m.text==='string'&&m.text.length<=500&&Number.isFinite(m.time)&&typeof m.system==='boolean'));
  if(r.phase==='lobby')assert(r.game===null);
+ else if(getGame(r.gameId).validateGame)getGame(r.gameId).validateGame(r.game,r.players,r.phase);
  else{
   const g=r.game;assert(g&&g.rules===RULESET&&g.phase===r.phase&&Array.isArray(g.order)&&g.order.length===r.players.length&&new Set(g.order).size===g.order.length&&g.order.every(id=>r.players.some(p=>p.id===id)));
   assert(Number.isInteger(g.turn)&&g.turn>=0&&g.turn<g.order.length&&Number.isInteger(g.rolls)&&g.rolls>=0&&g.rolls<=3&&Number.isInteger(g.round)&&g.round>=1&&g.round<=12);
