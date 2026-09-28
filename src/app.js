@@ -12,7 +12,7 @@ const app=document.querySelector('#app');
 const getLocal=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key))??fallback;}catch{return fallback;}};
 const identity=getLocal('hobg-identity',{id:uid(),token:uid(),name:''});
 const s={self:identity,room:null,tab:'home',status:'오프라인 · 혼자 플레이 가능',saveStatus:'',saves:[],lastJoin:getLocal('hobg-last-join',null),fields:{gameId:'yacht',bluffBid:'',nickname:identity.name,roomname:'주간 업무 기록',invite:new URLSearchParams(location.search).get('room')||'',chat:''},busy:false,error:'',notice:''};
-let net=null,tokens={},aiTimer=null,releaseLock=null,saveQueue=Promise.resolve();
+let net=null,tokens={},aiTimer=null,releaseLock=null,lockFinished=Promise.resolve(),saveQueue=Promise.resolve();
 function local(key,value){try{localStorage.setItem(key,JSON.stringify(value));}catch{notify('브라우저 저장소 접근이 제한되어 재접속 정보가 유지되지 않을 수 있어요.');}}
 function error(e){s.error=e.message||String(e);s.notice='';render();}
 function notify(text){s.notice=text;s.error='';render();}
@@ -23,7 +23,7 @@ function render(){
  const table=app.querySelector('.score-scroll');if(table)table.scrollLeft=scroll;const log=app.querySelector('.messages');if(log)log.scrollTop=nearBottom?log.scrollHeight:oldTop;
 }
 function persist(room=s.room,credentials=tokens){if(!room||room.hostId!==s.self.id)return Promise.resolve();const snapshot=structuredClone(room),auth=structuredClone(credentials);s.saveStatus='저장 중…';const pending=saveQueue.catch(()=>{}).then(()=>saveRoom(snapshot,auth));saveQueue=pending;pending.then(()=>{s.saveStatus='자동 저장됨 · '+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});render();},e=>{s.saveStatus='저장 실패';error(Error('자동 저장 실패: '+e.message+' · JSON 내보내기로 기록을 보관하세요.'));});return pending;}
-async function lock(id){if(releaseLock)return;if(!navigator.locks){throw Error('이 브라우저는 안전한 중복 접속 방지를 지원하지 않습니다. 최신 브라우저를 이용하세요.');}await new Promise((resolve,reject)=>{navigator.locks.request('hobg-session-'+id,{ifAvailable:true},async l=>{if(!l){reject(Error('다른 탭에서 같은 참가자가 접속 중입니다. 먼저 해당 탭을 닫아주세요.'));return;}await new Promise(done=>{releaseLock=done;resolve();});}).catch(reject);});}
+async function lock(id){if(releaseLock)return;await lockFinished;if(!navigator.locks){throw Error('이 브라우저는 안전한 중복 접속 방지를 지원하지 않습니다. 최신 브라우저를 이용하세요.');}await new Promise((resolve,reject)=>{lockFinished=navigator.locks.request('hobg-session-'+id,{ifAvailable:true},async l=>{if(!l){reject(Error('다른 탭에서 같은 참가자가 접속 중입니다. 먼저 해당 탭을 닫아주세요.'));return;}await new Promise(done=>{releaseLock=done;resolve();});}).catch(reject);});}
 function setupIdentity(){s.self={...identity,name:name(s.fields.nickname)};Object.assign(identity,s.self);local('hobg-identity',identity);}
 function stop(){delete s.fields.darkSelection;net?.stop();net=null;clearTimeout(aiTimer);aiTimer=null;releaseLock?.();releaseLock=null;s.busy=false;}
 function updateRoom(r){s.room=r;if(s.tab==='home')s.tab='game';render();scheduleAI();}
