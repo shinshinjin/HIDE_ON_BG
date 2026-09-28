@@ -6,6 +6,8 @@ import {currentPlayer} from './games/yacht/engine.js';
 import {chooseAI} from './games/yacht/ai.js';
 import {chooseAI as chooseBluffAI} from './games/bluff/ai.js';
 import {publicState as bluffState} from './games/bluff/engine.js';
+import {chooseAI as chooseDarkhorseAI} from './games/darkhorse/ai.js';
+import {publicState as darkhorseState} from './games/darkhorse/engine.js';
 const app=document.querySelector('#app');
 const getLocal=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key))??fallback;}catch{return fallback;}};
 const identity=getLocal('hobg-identity',{id:uid(),token:uid(),name:''});
@@ -23,12 +25,12 @@ function render(){
 function persist(room=s.room,credentials=tokens){if(!room||room.hostId!==s.self.id)return Promise.resolve();const snapshot=structuredClone(room),auth=structuredClone(credentials);s.saveStatus='저장 중…';const pending=saveQueue.catch(()=>{}).then(()=>saveRoom(snapshot,auth));saveQueue=pending;pending.then(()=>{s.saveStatus='자동 저장됨 · '+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});render();},e=>{s.saveStatus='저장 실패';error(Error('자동 저장 실패: '+e.message+' · JSON 내보내기로 기록을 보관하세요.'));});return pending;}
 async function lock(id){if(releaseLock)return;if(!navigator.locks){throw Error('이 브라우저는 안전한 중복 접속 방지를 지원하지 않습니다. 최신 브라우저를 이용하세요.');}await new Promise((resolve,reject)=>{navigator.locks.request('hobg-session-'+id,{ifAvailable:true},async l=>{if(!l){reject(Error('다른 탭에서 같은 참가자가 접속 중입니다. 먼저 해당 탭을 닫아주세요.'));return;}await new Promise(done=>{releaseLock=done;resolve();});}).catch(reject);});}
 function setupIdentity(){s.self={...identity,name:name(s.fields.nickname)};Object.assign(identity,s.self);local('hobg-identity',identity);}
-function stop(){net?.stop();net=null;clearTimeout(aiTimer);aiTimer=null;releaseLock?.();releaseLock=null;s.busy=false;}
+function stop(){delete s.fields.darkSelection;net?.stop();net=null;clearTimeout(aiTimer);aiTimer=null;releaseLock?.();releaseLock=null;s.busy=false;}
 function updateRoom(r){s.room=r;if(s.tab==='home')s.tab='game';render();scheduleAI();}
 function network(){return new RoomNetwork({self:s.self,onState:updateRoom,onStatus:status=>{s.status=status;render();},onError:message=>error(Error(message)),onPersist:(r,t)=>{tokens={...t};persist(r,t);}});}
 function scheduleAI(){
  clearTimeout(aiTimer);if(s.room?.mode!=='solo'||s.room.phase!=='playing')return;const r=s.room,p=r.players.find(p=>p.id===currentPlayer(r.game));if(!p?.bot||r.gameId==='bluff'&&r.game.stage!=='bid')return;
- aiTimer=setTimeout(()=>{try{if(s.room!==r)return;const a=r.gameId==='bluff'?chooseBluffAI(bluffState(r.game,p.id),p.id):chooseAI(r.game,p.id);if(a.type==='keep'){for(let i=0;i<5;i++)if(s.room.game.held[i]!==a.held[i])s.room=act(s.room,p.id,{type:'hold',index:i});s.room=act(s.room,p.id,{type:'roll'});}else s.room=act(s.room,p.id,a);persist();updateRoom(s.room);}catch(e){error(e);}},450);
+ aiTimer=setTimeout(()=>{try{if(s.room!==r)return;const a=r.gameId==='darkhorse'?chooseDarkhorseAI(darkhorseState(r.game,p.id),p.id):r.gameId==='bluff'?chooseBluffAI(bluffState(r.game,p.id),p.id):chooseAI(r.game,p.id);if(a.type==='keep'){for(let i=0;i<5;i++)if(s.room.game.held[i]!==a.held[i])s.room=act(s.room,p.id,{type:'hold',index:i});s.room=act(s.room,p.id,{type:'roll'});}else s.room=act(s.room,p.id,a);persist();updateRoom(s.room);}catch(e){error(e);}},450);
 }
 async function solo(){if(s.room)throw Error('먼저 현재 문서를 닫아주세요.');setupIdentity();await lock(s.self.id);tokens={};let r=createRoom(s.self,s.fields.roomname,'solo','',s.fields.gameId);r=joinRoom(r,{id:'computer',name:s.self.name==='컴퓨터'?'컴퓨터 AI':'컴퓨터',bot:true});r.players[1].ready=true;r=act(r,s.self.id,{type:'start'});s.status='로컬 · 컴퓨터와 작업 중';updateRoom(r);await persist();}
 async function host(){if(s.room)throw Error('먼저 현재 문서를 닫아주세요.');setupIdentity();await lock(s.self.id);tokens={};const r=createRoom(s.self,s.fields.roomname,'multi',inviteCode(),s.fields.gameId);net=network();await net.host(r);}
@@ -43,6 +45,15 @@ async function run(actionName,el){
  if(actionName==='dismiss'){s.error='';s.notice='';render();}
  if(actionName==='roll'||actionName==='ready'||actionName==='start')action({type:actionName});
  if(actionName==='selectGame')action({type:'selectGame',gameId:el.dataset.game});
+ if(actionName==='darkPlace')action({type:'darkPlace',horse:Number(el.dataset.horse),step:s.room.game.step});
+ if(actionName==='darkSelect'){s.fields.darkSelection={key:`${s.room.id}:${s.room.game.step}`,card:el.dataset.card};render();}
+ if(actionName==='darkTarget'){
+  const selected=s.fields.darkSelection,g=s.room.game;
+  if(!selected||selected.key!==`${s.room.id}:${g.step}`)throw Error('카드를 다시 선택하세요.');
+  const {cardById}=await import('./games/darkhorse/rules.js'),horse=Number(el.dataset.horse);
+  if(cardById(selected.card)?.kind==='swap'&&!selected.horse){selected.horse=horse;render();}
+  else {action({type:'darkPlay',card:selected.card,horse:selected.horse||horse,...(selected.horse?{other:horse}:{}),step:g.step});delete s.fields.darkSelection;render();}
+ }
  if(actionName==='bluffBid'){const value=document.querySelector('#bluff-bid').value;const [count,face]=value.split(':').map(Number);action({type:'bid',count,face,round:s.room.game.round});}
  if(actionName==='challenge'||actionName==='nextRound')action({type:actionName,round:s.room.game.round});
  if(actionName==='hold')action({type:'hold',index:Number(el.dataset.index)});
